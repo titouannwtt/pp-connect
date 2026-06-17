@@ -45,7 +45,11 @@ export function registerAiProxy(app, opts = {}) {
     if (ct) reply.header('content-type', ct);
     const ra = upstream.headers.get('retry-after');
     if (ra) reply.header('retry-after', ra);
-    reply.header('cache-control', 'no-cache');
+    // Anti-buffering pour les intermédiaires (Cloudflare, nginx…) : sans ça le streaming SSE de l'IA peut « geler »
+    // (réponse mise en tampon). no-transform = interdit la transformation/mise en cache ; x-accel-buffering=no = pas
+    // de buffer côté proxy. Couplé à `flush_interval -1` côté Caddy.
+    reply.header('cache-control', 'no-cache, no-transform');
+    reply.header('x-accel-buffering', 'no');
 
     // Log métadonnées SEULES (jamais la clé).
     console.log(safeLogLine({ ts: t0, provider, status: upstream.status, ms: Date.now() - t0, bytes: 0 }));
