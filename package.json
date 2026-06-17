@@ -1,0 +1,15 @@
+{
+  "name": "pp-connect",
+  "version": "0.1.0",
+  "description": "Prompt Pipeline — partie « connexions » du relais stateless (AGPL) : ponts SSH/SFTP, proxy IA pass-through, OAuth/API Google/Notion/GitHub, MCP allowlisté, client HTTP + rendu web, anti-SSRF, logger redacteur. Publié pour audit (design auditable ; cf. claim niveau 2-3).",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "private": false,
+  "dependencies": {
+    "ssh2": "1.17.0",
+    "ipaddr.js": "2.4.0"
+  },
+  "optionalDependencies": {
+    "playwright": "1.49.1"
+  }
+}
