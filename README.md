@@ -1,31 +1,49 @@
-# pp-connect (AGPL-3.0-or-later)
+# pp-connect
 
-**Partie « connexions » du relais stateless de [Prompt Pipeline](https://prompt-pipeline.io).**
+**The connection layer of the [Prompt Pipeline](https://prompt-pipeline.io) relay.**
 
-Ces modules sont publiés pour la **transparence** : ils manipulent les identifiants que vous utilisez (SSH, IA,
-Drive/Notion/GitHub, FTP, MCP) en mode **forward-then-forget**, avec anti-SSRF et un logger qui **rédige** tout
-secret. Le reste du relais (orchestration, config, auth) reste fermé.
+Prompt Pipeline is a zero-trust web workspace. A browser cannot open raw SSH/SFTP sockets or reach most provider
+APIs directly (CORS, TCP), so a small **stateless relay** sits between the browser and the target you choose. This
+repository contains the part of that relay which handles your credentials and outbound connections — published
+under **AGPL-3.0** for transparency, so anyone can audit how credentials are forwarded.
 
-## Ce que ce dépôt prouve — et ne prouve PAS
-- ✅ **Design auditable** : on lit le code qui touche les identifiants et on vérifie l'intention *stateless /
-  zéro-log de secret / anti-SSRF*. Le `client_secret`/les tokens ne sont jamais journalisés ni persistés ; ils
-  arrivent par paramètre et sont oubliés après usage.
-- ❌ **Pas de preuve au runtime** : le binaire qui tourne sur le serveur n'est pas vérifiable à distance (pas de
-  TEE). L'assurance vient de ce code ouvert + de la **vérification réseau** côté navigateur (le clair ne va qu'au
-  relais → la cible que **vous** utilisez). Voir le claim de confidentialité de Prompt Pipeline.
+When you actively use a connector, the relay forwards your secret to the **target you selected** (your SSH host,
+the AI provider, Google/Notion/GitHub, an FTP server…) and then forgets it. It is stateless: nothing is persisted,
+and the logger redacts every secret.
 
-## Contenu
-- `src/proxy.mjs` — proxy IA pass-through (clé transmise au provider, jamais loggée).
-- `src/log.mjs` — logger **redacteur** (en-têtes d'auth/clés `[redacted]`, métadonnées seules).
-- `src/ssh/`, `src/ftp/` — ponts SSH/SFTP (mot de passe transmis à la cible).
-- `src/google/`, `src/notion/`, `src/github/` — échanges OAuth + proxys API.
-- `src/mcp/` — proxy MCP allowlisté. `src/http/` — client HTTP + rendu web. `src/security/` — anti-SSRF + Origin.
+## Modules
 
-## Note source / runtime
-Ce dépôt est un **miroir d'audit** du code de connexion du relais (le secret de l'app — ex. `client_secret`
-Google — vit dans l'environnement du serveur, jamais ici). Il n'est pas un serveur autonome (la config et
-l'orchestration sont fermées). Synchronisé depuis le relais.
+- `src/proxy.mjs` — AI pass-through proxy. Your API key is forwarded to the provider, streamed back, never logged.
+- `src/log.mjs` — redacting logger: auth headers / API keys become `[redacted]`; only safe metadata is recorded.
+- `src/ssh/` — SSH bridge and one-shot exec over `ssh2` (password forwarded to the host).
+- `src/ftp/` — SFTP bridge (credentials forwarded to the host).
+- `src/google/`, `src/notion/`, `src/github/` — OAuth code exchange and API proxies. App OAuth client secrets live
+  in the relay's server environment, never in this code and never in the browser.
+- `src/mcp/` — allowlisted MCP proxy.
+- `src/http/` — generic HTTP request proxy and headless web rendering.
+- `src/security/` — anti-SSRF host denylist (blocks private/link-local addresses) and strict Origin checks.
 
-## Licence — open-core
-AGPL : un tiers qui réutilise pp-connect dans un service réseau doit publier sa source. Le détenteur du copyright
-n'est pas lié par sa propre AGPL (peut l'utiliser dans un relais fermé). L'AGPL sert à **dissuader la reprise**.
+## What you can verify — and what you can't
+
+- **Design (auditable):** read this code and confirm the intent — stateless, forward-then-forget, no secret
+  logging, anti-SSRF. Credentials arrive as function arguments and are discarded after use.
+- **Runtime (not remotely provable):** the binary running on the server cannot be cryptographically attested from
+  the outside (no trusted execution environment). Assurance therefore comes from this open code **plus** behavioral
+  verification in the browser: with DevTools open, decrypted secrets only ever travel to the relay endpoint for the
+  connector you actively invoke, never to any undisclosed destination.
+
+The relay's orchestration, configuration, and authentication are intentionally **not** part of this repository.
+
+## Install
+
+```bash
+npm install   # ssh2, ipaddr.js (+ optional playwright for web rendering)
+```
+
+These modules are imported by the relay; they are not a standalone server.
+
+## License
+
+AGPL-3.0-or-later (full text in [`LICENSE`](./LICENSE)). Network use of a derivative obliges you to publish the
+corresponding source — this deters closed-source re-hosting while keeping the credential-handling code auditable.
+The copyright holder may use this code in their own (closed) relay, as is standard for the author of the work.
