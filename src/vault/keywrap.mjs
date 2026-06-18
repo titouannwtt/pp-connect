@@ -7,8 +7,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 //
 // Format du blob enveloppé (base64) : iv(12) | ciphertext(32) | tag(16).
 
-function masterKey() {
-  const b64 = process.env.PP_VAULT_MASTER_KEY;
+function key32(b64) {
   if (!b64) return null;
   try {
     const k = Buffer.from(b64, 'base64');
@@ -16,6 +15,15 @@ function masterKey() {
   } catch {
     return null;
   }
+}
+function masterKey() {
+  return key32(process.env.PP_VAULT_MASTER_KEY);
+}
+// Clé maître PRÉCÉDENTE (rotation) : `wrap` utilise toujours la clé courante ; `unwrap` retente avec l'ancienne
+// → on peut tourner PP_VAULT_MASTER_KEY (nouvelle = courante, ancienne = PREVIOUS) sans casser les coffres Géré
+// existants, le temps qu'ils soient ré-enveloppés.
+function previousKey() {
+  return key32(process.env.PP_VAULT_MASTER_KEY_PREVIOUS);
 }
 
 export function vaultEnabled() {
@@ -38,9 +46,7 @@ export function wrapKey(rawKeyB64, userId) {
   return Buffer.concat([iv, ct, tag]).toString('base64');
 }
 
-export function unwrapKey(wrappedB64, userId) {
-  const mk = masterKey();
-  if (!mk) throw new Error('vault_master_unset');
+function tryUnwrap(mk, wrappedB64, userId) {
   const buf = Buffer.from(wrappedB64, 'base64');
   if (buf.length < 12 + 16 + 1) throw new Error('bad_blob');
   const iv = buf.subarray(0, 12);
@@ -51,4 +57,18 @@ export function unwrapKey(wrappedB64, userId) {
   decipher.setAuthTag(tag);
   const raw = Buffer.concat([decipher.update(ct), decipher.final()]); // throw si AAD/tag invalide
   return raw.toString('base64');
+}
+
+export function unwrapKey(wrappedB64, userId) {
+  const keys = [masterKey(), previousKey()].filter(Boolean);
+  if (!keys.length) throw new Error('vault_master_unset');
+  let lastErr = new Error('unwrap_failed');
+  for (const mk of keys) {
+    try {
+      return tryUnwrap(mk, wrappedB64, userId); // courante d'abord, puis l'ancienne (rotation)
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
 }
