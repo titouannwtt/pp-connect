@@ -87,9 +87,11 @@ export function handleSshConnection(ws, connId, authPromise = Promise.resolve())
       if (Buffer.isBuffer(auth.privateKey)) auth.privateKey.fill(0);
       auth.password = '';
     });
-    sshClient.on('error', () => {
+    sshClient.on('error', (err) => {
+      // Échec d'auth (mauvais mot de passe / clé) → code dédié pour un message clair côté client ; sinon générique.
+      const code = err && err.level === 'client-authentication' ? 'AUTH_FAILED' : 'SSH_ERROR';
       try {
-        ws.send(JSON.stringify({ type: 'error', code: 'SSH_ERROR' }));
+        ws.send(JSON.stringify({ type: 'error', code }));
       } catch {
         /* socket fermé */
       }
