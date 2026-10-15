@@ -1,3 +1,9 @@
+> [!IMPORTANT]
+> **Archived on 2026-10-15.** This repository mirrored the connection layer of Prompt Pipeline's former Node.js relay.
+> The relay now runs a different implementation, so this code no longer describes what runs in production, and it
+> never proved anything about encryption. For the verifiable encryption of [prompt-pipeline.io](https://prompt-pipeline.io),
+> see **[prompt-pipeline-core](https://github.com/titouannwtt/prompt-pipeline-core)**.
+
 # pp-connect
 
 **The connection layer of the [Prompt Pipeline](https://prompt-pipeline.io) relay.**
